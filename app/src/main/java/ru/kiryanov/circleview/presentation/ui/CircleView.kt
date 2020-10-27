@@ -3,22 +3,30 @@ package ru.kiryanov.circleview.presentation.ui
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.res.Resources
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
+import android.graphics.drawable.Drawable
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
 import android.view.animation.LinearInterpolator
 import androidx.annotation.ColorRes
+import androidx.annotation.DrawableRes
 import androidx.annotation.Nullable
 import androidx.core.content.ContextCompat
 import ru.kiryanov.circleview.R
-import kotlin.math.PI
-import kotlin.math.atan2
+import kotlin.math.*
 
 
 class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(context) {
+
+
+    companion object {
+        private const val SECTOR_OPEN_CLOSE_ANIMATION_DURATION = 9050L
+    }
+
     var paint: Paint = Paint()
 
     var centerOfX = 0f
@@ -37,7 +45,7 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
     private val sectors = mutableListOf<SectorModel>()
     private var clickListener: ((x: Float, y: Float) -> Unit)? = null
     private val defaultRectF = RectF()
-
+    private val sectorsIcons = mutableListOf<Drawable>()
 
     private val sectorArc: Float
         get() {
@@ -62,29 +70,32 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         color3 = android.R.color.holo_blue_bright
         color4 = android.R.color.holo_red_dark
         color5 = android.R.color.holo_orange_dark
-        color6 = android.R.color.black
+        color6 = android.R.color.holo_red_light
         color7 = android.R.color.holo_green_light
 
         setTouchListener()
     }
 
-    private var currentSweepAngle: Int? = null
-    private val arcAnimatorOn = ValueAnimator.ofInt(0, 100)
+    private var animatingRadius: Int = radius.toInt()
+    private val openSectorRadius: Int
+        get() = (radius / 2).toInt()
+
+    private val arcAnimatorOn = ValueAnimator.ofInt(0, openSectorRadius)
         .apply {
-            duration = 650
+            duration = SECTOR_OPEN_CLOSE_ANIMATION_DURATION
             interpolator = LinearInterpolator()
             addUpdateListener { valueAnimator ->
-                currentSweepAngle = valueAnimator.animatedValue as Int
+                animatingRadius = valueAnimator.animatedValue as Int
                 invalidate()
             }
         }
 
-    private val arcAnimationOff = ValueAnimator.ofInt(100, 0)
+    private val arcAnimationOff = ValueAnimator.ofInt(openSectorRadius, 0)
         .apply {
-            duration = 650
+            duration = SECTOR_OPEN_CLOSE_ANIMATION_DURATION
             interpolator = LinearInterpolator()
             addUpdateListener { valueAnimator ->
-                currentSweepAngle = valueAnimator.animatedValue as Int
+                animatingRadius = valueAnimator.animatedValue as Int
                 invalidate()
             }
         }
@@ -113,17 +124,12 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         sectors.forEachIndexed { index, sector ->
             sector.apply {
 
+
                 if (isActive && isAnimationOn && !isAnimationOffOn) {
 //Open sector by tap
-                    currentSweepAngle = 20
+
                     canvas?.drawArc(
-                        coordinates.apply {
-                            val delta = currentSweepAngle?.toFloat() ?: 0f
-                            top -= delta
-                            bottom += delta
-                            right += delta / 4
-                            left -= delta / 4
-                        },
+                        recalculateCoordinates(animatingRadius),
                         startAngle,
                         sweepAngle,
                         true,
@@ -152,15 +158,8 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
                     if (coordinates.left < defaultRectF.left && !isActive) {
 
 //Close activated sector
-                        currentSweepAngle = 20
                         canvas?.drawArc(
-                            coordinates.apply {
-                                val delta = currentSweepAngle?.toFloat() ?: 0f
-                                top += delta
-                                bottom -= delta
-                                right -= delta / 4
-                                left += delta / 4
-                            },
+                            recalculateCoordinates(animatingRadius),
                             startAngle,
                             sweepAngle,
                             true,
@@ -201,13 +200,16 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
                                 }
                             )
                         )
-
-
                     }
                 }
             }
         }
+        canvas?.let { canva ->
+            sectorsIcons.forEach {
+                it.draw(canva)
+            }
 
+        }
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -220,6 +222,15 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
 
             false
         }
+    }
+
+    private fun recalculateCoordinates(radius: Int): RectF {
+        return RectF(
+            centerOfX - radius,
+            centerOfX + radius,
+            centerOfY - radius,
+            centerOfY + radius
+        )
     }
 
     private fun initSectors() {
@@ -239,12 +250,14 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
             this.bottom = bottom
         }
 
-        for (i in 0 until sectorAmount) {
+        for (sectorNumber in 0 until sectorAmount) {
             sectors.add(
                 SectorModel(
-                    i, i * sectorArc, sectorArc,
+                    sectorNumber, sectorNumber * sectorArc, sectorArc,
                     RectF(left, top, right, bottom)
-                )
+                ).apply {
+                    initImage(R.drawable.ic_baseline_account_circle_24, this)
+                }
             )
         }
 
@@ -274,6 +287,48 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         return sectors.size - 1
     }
 
+    @SuppressLint("UseCompatLoadingForDrawables")
+    private fun initImage(@DrawableRes drawable: Int, sector: SectorModel) {
+        val image: Drawable = resources.getDrawable(drawable, null)
+        sector.coordinates.apply {
+
+            val point = calculateImageLocation(sector)
+            val imageCenterX = point.x
+            val imageCenterY = point.y
+            val delta = 2
+
+            image.setBounds(
+                (imageCenterX - image.minimumWidth).toInt() / delta,
+                (imageCenterY - image.minimumHeight).toInt() / delta,
+                (imageCenterX + image.minimumWidth).toInt() / delta,
+                (imageCenterY + image.minimumHeight).toInt() / delta
+            )
+
+        }
+        sectorsIcons.add(image)
+    }
+
+    private fun calculateImageLocation(sector: SectorModel): Point {
+        val x: Float
+        val y: Float
+        sector.apply {
+
+            // 90f cause of coordinate system
+            val imageAngleFromCircleCenterInDegree = (startAngle + (sweepAngle / 2) + 90f)
+            val angleInRad = imageAngleFromCircleCenterInDegree.toRadian()
+            val deltaX = (radius * sin(angleInRad))
+            val deltaY = (radius * cos(angleInRad))
+
+            x = (coordinates.centerX() * 2) + deltaX
+            y = (coordinates.centerY() * 2) + deltaY
+
+        }
+
+        return Point(x, y)
+    }
+
+
+    private inner class Point(val x: Float, val y: Float)
 
     private fun Paint.initPaint(@ColorRes colorId: Int) =
         this.apply {
@@ -286,4 +341,9 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
             color = ContextCompat.getColor(context, colorId)
         }
 
+    private fun Float.toRadian(): Float = (this * PI / 180).toFloat()
+
+    fun Float.toDp() = (this * Resources.getSystem().displayMetrics.density)
+
+    fun Float.toPx() = (this / Resources.getSystem().displayMetrics.density)
 }

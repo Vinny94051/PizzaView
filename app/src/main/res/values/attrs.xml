@@ -9,4 +9,13 @@
         <attr name="sector_amount" format="integer"/>
     </declare-styleable>
 
+    <declare-styleable name="sector_view">
+        <attr name="rotate_angle" format="integer"/>
+        <attr name="center_angle" format="integer" />
+        <attr name="sector_background" format="color"/>
+        <attr name="iconic" format="integer"/>
+        <attr name="text" format="string"/>
+        <attr name="radius" format="dimension"/>
+    </declare-styleable>
+
 </resources>
