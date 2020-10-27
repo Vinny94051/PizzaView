@@ -8,9 +8,9 @@ data class SectorModel(
     val startAngle: Float,
     val sweepAngle : Float,
     var coordinates : RectF,
-    var isActive : Boolean = false,
-    var isAnimationOn : Boolean = false,
-    var isAnimationOffOn : Boolean = false,
+    var isSectorOpen : Boolean = false,
+    var isNowAnimating : Boolean = false,
+    var isNeedToBeOpen : Boolean = false,
     @ColorRes val color: Int = android.R.color.holo_blue_dark,
     val data : Data = Data()
 ) {
