@@ -81,30 +81,27 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
     private val openSectorRadius: Int
         get() = (radius * 1.5).toInt()
 
-    private val arcAnimatorOpening: ValueAnimator
-        get() =
-            ValueAnimator.ofInt(radius.toInt(), openSectorRadius)
-                .apply {
-                    duration = SECTOR_OPEN_CLOSE_ANIMATION_DURATION
-                    interpolator = LinearInterpolator()
-                    addUpdateListener { valueAnimator ->
-                        radius = (valueAnimator.animatedValue as Int).toFloat()
-                        initSectors()
-                        invalidate()
-                    }
+    private val arcAnimatorOpening: ValueAnimator =
+        ValueAnimator.ofInt(radius.toInt(), openSectorRadius)
+            .apply {
+                duration = SECTOR_OPEN_CLOSE_ANIMATION_DURATION
+                interpolator = LinearInterpolator()
+                addUpdateListener { valueAnimator ->
+                    animatingRadius += valueAnimator.animatedValue as Int
+                    invalidate()
                 }
+            }
 
-    private val arcAnimationClosing: ValueAnimator
-        get() =
-            ValueAnimator.ofInt(openSectorRadius, radius.toInt())
-                .apply {
-                    duration = SECTOR_OPEN_CLOSE_ANIMATION_DURATION
-                    interpolator = LinearInterpolator()
-                    addUpdateListener { valueAnimator ->
-                        animatingRadius = valueAnimator.animatedValue as Int
-                        invalidate()
-                    }
+    private val arcAnimationClosing: ValueAnimator =
+        ValueAnimator.ofInt(openSectorRadius, radius.toInt())
+            .apply {
+                duration = SECTOR_OPEN_CLOSE_ANIMATION_DURATION
+                interpolator = LinearInterpolator()
+                addUpdateListener { valueAnimator ->
+                    animatingRadius = valueAnimator.animatedValue as Int
+                    invalidate()
                 }
+            }
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         super.onLayout(changed, left, top, right, bottom)
@@ -129,7 +126,40 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         sectors.forEachIndexed { index, sector ->
             sector.apply {
 
-              if (animatingRadius < openSectorRadius && isNowAnimating) {
+                if (isNeedToBeOpen && !isSectorOpen && isNowAnimating) {
+
+
+                    canvas?.drawArc(
+                        coordinates.apply {
+                            val delta = (animatingRadius - radius)/8
+                            top -= delta
+                            bottom += delta
+                            right += delta
+                            top -= delta
+
+                        }, startAngle, sweepAngle, true,
+                        paint.changeColor(
+                            when (index) {
+                                0 -> color1!!
+                                1 -> color2!!
+                                2 -> color3!!
+                                3 -> color4!!
+                                4 -> color5!!
+                                5 -> color6!!
+                                else -> color7!!
+                            }
+                        )
+                    )
+                if(isNowAnimating){
+                    arcAnimatorOpening.start()
+                }
+                    animationCounter++
+                    if (animationCounter > 50){
+                        isNowAnimating = false
+                        animationCounter = 0
+                    }
+
+                } else {
                     canvas?.drawArc(
                         coordinates, startAngle, sweepAngle, true,
                         paint.changeColor(
@@ -145,23 +175,6 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
                         )
                     )
                 }
-
-
-
-                canvas?.drawArc(
-                    coordinates, startAngle, sweepAngle, true,
-                    paint.changeColor(
-                        when (index) {
-                            0 -> color1!!
-                            1 -> color2!!
-                            2 -> color3!!
-                            3 -> color4!!
-                            4 -> color5!!
-                            5 -> color6!!
-                            else -> color7!!
-                        }
-                    )
-                )
             }
         }
         canvas?.let { canva ->
@@ -182,15 +195,6 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
 
             false
         }
-    }
-
-    private fun recalculateCoordinates(radius: Int): RectF {
-        return RectF(
-            defaultRectF.left - radius,
-            defaultRectF.top + radius,
-            defaultRectF.right - radius,
-            defaultRectF.bottom + radius
-        )
     }
 
     private fun initSectors() {
@@ -224,14 +228,11 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
     }
 
     private fun animateSector(sector: SectorModel) {
-        if (!sector.isSectorOpen) {
-            sector.isSectorOpen = true
-            sector.isNowAnimating = true
-            invalidate()
-        } else {
-            sector.isSectorOpen = false
-            sector.isNeedToBeOpen = true
-        }
+       if(!sector.isNeedToBeOpen){
+           sector.isNeedToBeOpen = true
+       }
+        sector.isNowAnimating = true
+        invalidate()
     }
 
     private fun findSectorByCoordinates(x: Float, y: Float): Int? {
