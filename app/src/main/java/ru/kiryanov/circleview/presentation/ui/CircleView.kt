@@ -15,7 +15,6 @@ import android.view.animation.LinearInterpolator
 import androidx.annotation.ColorRes
 import androidx.annotation.DrawableRes
 import androidx.annotation.Nullable
-import androidx.core.animation.doOnEnd
 import androidx.core.content.ContextCompat
 import ru.kiryanov.circleview.R
 import kotlin.math.*
@@ -77,31 +76,26 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         setTouchListener()
     }
 
-    private var animatingRadius: Int = radius.toInt()
-    private val openSectorRadius: Int
-        get() = (radius * 1.5).toInt()
-
-    private val arcAnimatorOpening: ValueAnimator =
-        ValueAnimator.ofInt(radius.toInt(), openSectorRadius)
-            .apply {
-                duration = SECTOR_OPEN_CLOSE_ANIMATION_DURATION
-                interpolator = LinearInterpolator()
-                addUpdateListener { valueAnimator ->
-                    animatingRadius += valueAnimator.animatedValue as Int
-                    invalidate()
-                }
+    private var currentSweepAngle: Int? = null
+    private val arcAnimatorOn = ValueAnimator.ofInt(0, 100)
+        .apply {
+            duration = 650
+            interpolator = LinearInterpolator()
+            addUpdateListener { valueAnimator ->
+                currentSweepAngle = valueAnimator.animatedValue as Int
+                invalidate()
             }
+        }
 
-    private val arcAnimationClosing: ValueAnimator =
-        ValueAnimator.ofInt(openSectorRadius, radius.toInt())
-            .apply {
-                duration = SECTOR_OPEN_CLOSE_ANIMATION_DURATION
-                interpolator = LinearInterpolator()
-                addUpdateListener { valueAnimator ->
-                    animatingRadius = valueAnimator.animatedValue as Int
-                    invalidate()
-                }
+    private val arcAnimationOff = ValueAnimator.ofInt(100, 0)
+        .apply {
+            duration = 650
+            interpolator = LinearInterpolator()
+            addUpdateListener { valueAnimator ->
+                currentSweepAngle = valueAnimator.animatedValue as Int
+                invalidate()
             }
+        }
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         super.onLayout(changed, left, top, right, bottom)
@@ -117,7 +111,9 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
     }
 
 
-    private var animationCounter = 0
+    //можно 1 а не 2
+    private var counter = 0
+    private var counter2 = 0
 
     @SuppressLint("DrawAllocation")
     override fun onDraw(canvas: Canvas?) {
@@ -126,18 +122,20 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         sectors.forEachIndexed { index, sector ->
             sector.apply {
 
-                if (isNeedToBeOpen && !isSectorOpen && isNowAnimating) {
-
-
+                if (isActive && isAnimationOn && !isAnimationOffOn) {
+//Open sector by tap
+                    currentSweepAngle = 20
                     canvas?.drawArc(
                         coordinates.apply {
-                            val delta = (animatingRadius - radius)/8
+                            val delta = currentSweepAngle?.toFloat() ?: 0f
                             top -= delta
                             bottom += delta
                             right += delta
-                            top -= delta
-
-                        }, startAngle, sweepAngle, true,
+                            left -= delta
+                        },
+                        startAngle,
+                        sweepAngle,
+                        true,
                         paint.changeColor(
                             when (index) {
                                 0 -> color1!!
@@ -148,40 +146,100 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
                                 5 -> color6!!
                                 else -> color7!!
                             }
+
                         )
                     )
-                if(isNowAnimating){
-                    arcAnimatorOpening.start()
-                }
-                    animationCounter++
-                    if (animationCounter > 50){
-                        isNowAnimating = false
-                        animationCounter = 0
+
+                    sectorsIcons[sectorAmount - 1 - index].apply {
+                        val delta = 4
+                        bounds.left -= currentSweepAngle!! / delta
+                        bounds.top -= currentSweepAngle!! / delta
+                        bounds.right += currentSweepAngle!! / delta
+                        bounds.bottom += currentSweepAngle!! / delta
+                    }.draw(canvas!!)
+
+
+
+                    if (isAnimationOn) arcAnimatorOn.start()
+                    counter++
+                    if (counter > 5) {
+                        isAnimationOn = false
+                        counter = 0
                     }
 
                 } else {
-                    canvas?.drawArc(
-                        coordinates, startAngle, sweepAngle, true,
-                        paint.changeColor(
-                            when (index) {
-                                0 -> color1!!
-                                1 -> color2!!
-                                2 -> color3!!
-                                3 -> color4!!
-                                4 -> color5!!
-                                5 -> color6!!
-                                else -> color7!!
-                            }
+
+                    if (coordinates.left < defaultRectF.left && !isActive) {
+
+//Close activated sector
+                        currentSweepAngle = 20
+                        canvas?.drawArc(
+                            coordinates.apply {
+                                val delta = currentSweepAngle?.toFloat() ?: 0f
+                                top += delta
+                                bottom -= delta
+                                right -= delta
+                                left += delta
+                            },
+                            startAngle,
+                            sweepAngle,
+                            true,
+                            paint.changeColor(
+                                when (index) {
+                                    0 -> color1!!
+                                    1 -> color2!!
+                                    2 -> color3!!
+                                    3 -> color4!!
+                                    4 -> color5!!
+                                    5 -> color6!!
+                                    else -> color7!!
+                                }
+                            )
                         )
-                    )
+
+                        sectorsIcons[sectorAmount - 1 - index].apply {
+                            val delta = 4
+                            bounds.left += currentSweepAngle!! / delta
+                            bounds.top += currentSweepAngle!! / delta
+                            bounds.right -= currentSweepAngle!! / delta
+                            bounds.bottom -= currentSweepAngle!! / delta
+                        }.draw(canvas!!)
+
+                        if (isAnimationOffOn) arcAnimationOff.start()
+                        counter2++
+                        if (counter2 > 5) {
+                            isAnimationOffOn = false
+                            counter2 = 0
+                        }
+
+                    } else {
+//Default case
+
+                        canvas?.drawArc(
+                            coordinates, startAngle, sweepAngle, true,
+                            paint.changeColor(
+                                when (index) {
+                                    0 -> color1!!
+                                    1 -> color2!!
+                                    2 -> color3!!
+                                    3 -> color4!!
+                                    4 -> color5!!
+                                    5 -> color6!!
+                                    else -> color7!!
+                                }
+                            )
+                        )
+
+
+                    }
+                    canvas?.let { canva ->
+                        sectorsIcons.forEach {
+                            it.draw(canva)
+                        }
+
+                    }
                 }
             }
-        }
-        canvas?.let { canva ->
-            sectorsIcons.forEach {
-                it.draw(canva)
-            }
-
         }
     }
 
@@ -220,7 +278,15 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
                     sectorNumber, sectorNumber * sectorArc, sectorArc,
                     RectF(left, top, right, bottom)
                 ).apply {
-                    initImage(R.drawable.ic_baseline_account_circle_24, this)
+                    when (sectorAmount - 1 - sectorNumber) {
+                        0 -> initImage(R.drawable.ic_baseline_account_circle_1, this)
+                        1 -> initImage(R.drawable.ic_baseline_account_circle_2, this)
+                        2 -> initImage(R.drawable.ic_baseline_account_circle_3, this)
+                        3 -> initImage(R.drawable.ic_baseline_account_circle_4, this)
+                        4 -> initImage(R.drawable.ic_baseline_account_circle_6, this)
+                        5 -> initImage(R.drawable.ic_baseline_account_circle_5, this)
+                    }
+
                 }
             )
         }
@@ -228,11 +294,14 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
     }
 
     private fun animateSector(sector: SectorModel) {
-       if(!sector.isNeedToBeOpen){
-           sector.isNeedToBeOpen = true
-       }
-        sector.isNowAnimating = true
-        invalidate()
+        if (!sector.isActive) {
+            sector.isActive = true
+            sector.isAnimationOn = true
+            invalidate()
+        } else {
+            sector.isActive = false
+            sector.isAnimationOffOn = true
+        }
     }
 
     private fun findSectorByCoordinates(x: Float, y: Float): Int? {
