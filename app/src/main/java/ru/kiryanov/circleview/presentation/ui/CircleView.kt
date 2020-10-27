@@ -305,7 +305,7 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
     }
 
     private fun findSectorByCoordinates(x: Float, y: Float): Int? {
-        val angle = atan2((height / 2) - y, (width / 2) - x) * (180 / PI) + 180
+        val angle = atan2((height / 2) - y, (width / 2) - x).toDegree() + 180
 
         if (angle < sectors[1].startAngle) return 0
 
@@ -372,6 +372,7 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         }
 
     private fun Float.toRadian(): Float = (this * PI / 180).toFloat()
+    private fun Float.toDegree(): Float = (this / PI * 180).toFloat()
 
     fun Float.toDp() = (this * Resources.getSystem().displayMetrics.density)
 
