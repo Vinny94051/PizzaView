@@ -12,7 +12,7 @@
         android:layout_height="wrap_content"
         circle:onCenter="true"
         android:layout_alignParentBottom="true"
-        circle:sector_amount="5"
+        circle:sector_amount="8"
         circle:circle_radius="100dp"
         circle:circle_background="@android:color/holo_red_dark"
         />

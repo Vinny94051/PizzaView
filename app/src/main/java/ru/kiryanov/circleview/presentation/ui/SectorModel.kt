@@ -11,8 +11,5 @@ data class SectorModel(
     var isActive  : Boolean = false,
     var isAnimationOn  : Boolean = false,
     var isAnimationOffOn  : Boolean = false,
-    @ColorRes val color: Int = android.R.color.holo_blue_dark,
-    val data : Data = Data()
-) {
-    class Data()
-}
+    @ColorRes val color: Int = android.R.color.holo_blue_dark
+)
