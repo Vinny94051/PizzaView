@@ -2,7 +2,6 @@
 <resources>
 
     <declare-styleable name="circleview">
-        <attr name="onCenter" format="boolean"/>
         <attr name="circle_background" format="color" />
         <attr name="circle_radius" format="dimension" />
         <attr name="stroke_width" format="dimension"/>
