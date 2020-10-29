@@ -10,7 +10,8 @@
         android:id="@+id/circle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        circle:circle_radius="70dp"
-        circle:sector_amount="5" />
+        circle:circle_radius="100dp"
+        android:layout_centerInParent="true"
+        circle:sector_amount="9" />
 
 </RelativeLayout>
