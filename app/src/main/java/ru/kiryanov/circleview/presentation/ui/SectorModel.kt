@@ -11,7 +11,7 @@ data class SectorModel(
     var coordinates : RectF,
     var isActive  : Boolean = false,
     var isAnimationOn  : Boolean = false,
-    var isAnimationOffOn  : Boolean = false,
+    var currentIncreasingDelta : Float = 0f,
     val data : Data
 ){
      class Data(

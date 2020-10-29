@@ -12,6 +12,6 @@
         android:layout_height="wrap_content"
         circle:circle_radius="100dp"
         android:layout_centerInParent="true"
-        circle:sector_amount="9" />
+        circle:sector_amount="6" />
 
 </RelativeLayout>

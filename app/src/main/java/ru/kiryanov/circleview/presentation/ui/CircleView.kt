@@ -1,5 +1,6 @@
 package ru.kiryanov.circleview.presentation.ui
 
+import android.animation.Animator
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
@@ -10,7 +11,6 @@ import android.graphics.RectF
 import android.graphics.drawable.Drawable
 import android.util.AttributeSet
 import android.util.Log
-import android.util.TimeUtils
 import android.view.MotionEvent
 import android.view.View
 import android.view.animation.LinearInterpolator
@@ -19,14 +19,13 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.Nullable
 import androidx.core.content.ContextCompat
 import ru.kiryanov.circleview.R
-import java.util.concurrent.TimeUnit
 import kotlin.math.*
 
 
 class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(context, atrSet) {
 
     companion object {
-        private const val SECTOR_OPEN_CLOSE_ANIMATION_DURATION = 650L
+        private const val SECTOR_OPEN_CLOSE_ANIMATION_DURATION = 200L
         private const val MIN_HOLDING_SECTOR_TIME_IN_MILLS = 40
         private const val MAX_HOLDING_SECTOR_TIME_IN_MILLS = 1000
     }
@@ -35,17 +34,23 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
     var centerOfX = 0f
     var centerOfY = 0f
     var radius = 0f
+    var increaseCoefficient: Float = 0f
+        get() {
+            return if (field == 0f)
+                radius / 3
+            else
+                field
+        }
 
-    private var counterOpenAnimation = 0
-    private var counterCloseAnimation = 0
     private var sectorAmount: Int
     private val sectors = mutableListOf<SectorModel>()
     private var clickListener: ((x: Float, y: Float) -> Unit)? = null
     private val defaultRectF = RectF()
     private var openedRectF = RectF()
+    private var isOpenedRectFUpdated = false
     private val sectorsIcons = mutableListOf<Drawable>()
     private val sectorIconsOffsets = mutableListOf<Rect>()
-    private var isOpenedRectFUpdated = false
+
     var sectorsInfo: List<SectorModel.Data>? = null
         set(value) {
             field = value
@@ -71,28 +76,6 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         setTouchListener()
     }
 
-    private var currentSweepAngle: Int? = null
-    private val arcAnimatorOn = ValueAnimator.ofInt(0, 100)
-        .apply {
-            duration = SECTOR_OPEN_CLOSE_ANIMATION_DURATION
-            interpolator = LinearInterpolator()
-            addUpdateListener { valueAnimator ->
-                currentSweepAngle = valueAnimator.animatedValue as Int
-                invalidate()
-            }
-        }
-
-    private val arcAnimationOff = ValueAnimator.ofInt(100, 0)
-        .apply {
-            duration = SECTOR_OPEN_CLOSE_ANIMATION_DURATION
-            interpolator = LinearInterpolator()
-            addUpdateListener { valueAnimator ->
-                Log.d(javaClass.simpleName, "${valueAnimator.animatedValue as Int}")
-                currentSweepAngle = valueAnimator.animatedValue as Int
-                invalidate()
-            }
-        }
-
     //TODO right on Measure calculation
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
@@ -117,16 +100,15 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         sectors.forEachIndexed { index, sector ->
             sector.apply {
 
-                if (isActive && isAnimationOn && !isAnimationOffOn) {
+                if (isActive && isAnimationOn) {
                     //Open sector by tap
-                    currentSweepAngle = 20
+
                     canvas?.drawArc(
                         coordinates.apply {
-                            val delta = currentSweepAngle?.toFloat() ?: 0f
-                            top -= delta
-                            bottom += delta
-                            right += delta
-                            left -= delta
+                            top = defaultRectF.top - sector.currentIncreasingDelta
+                            bottom = defaultRectF.bottom + sector.currentIncreasingDelta
+                            right = defaultRectF.right + sector.currentIncreasingDelta
+                            left = defaultRectF.left - sector.currentIncreasingDelta
                         },
                         startAngle,
                         sweepAngle,
@@ -135,67 +117,20 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
                     )
 
                     sectorsIcons[index].apply {
-                        val delta = 4
-
-
-                        when (startAngle + sweepAngle / 2) {
-                            in 0f..90f -> {
-                                bounds.left += currentSweepAngle!! / delta
-                                bounds.top += currentSweepAngle!! / delta
-                                bounds.right += currentSweepAngle!! / delta
-                                bounds.bottom += currentSweepAngle!! / delta
-                            }
-
-                            in 90.1f..180f -> {
-                                bounds.left -= currentSweepAngle!! / delta
-                                bounds.top += currentSweepAngle!! / delta
-                                bounds.right -= currentSweepAngle!! / delta
-                                bounds.bottom += currentSweepAngle!! / delta
-                            }
-
-                            in 180.1f..270f -> {
-                                bounds.left -= currentSweepAngle!! / delta
-                                bounds.top -= currentSweepAngle!! / delta
-                                bounds.right -= currentSweepAngle!! / delta
-                                bounds.bottom -= currentSweepAngle!! / delta
-                            }
-
-                            else -> {
-                                bounds.left += currentSweepAngle!! / delta
-                                bounds.top -= currentSweepAngle!! / delta
-                                bounds.right += currentSweepAngle!! / delta
-                                bounds.bottom -= currentSweepAngle!! / delta
-                            }
-                        }
                     }.draw(canvas!!)
 
 
-
-                    if (isAnimationOn) arcAnimatorOn.start()
-                    counterOpenAnimation++
-                    if (counterOpenAnimation > 5) {
-                        //save open rect coordinates
-                        if (!isOpenedRectFUpdated) {
-                            openedRectF = coordinates.copy()
-                            isOpenedRectFUpdated = true
-                        }
-                        isAnimationOn = false
-                        counterOpenAnimation = 0
-                    }
-
                 } else {
 
-                    if (coordinates.left < defaultRectF.left && !isActive) {
+                    if (!isActive && isAnimationOn) {
                         //Close activated sector
-                        Log.d(javaClass.simpleName, "Close")
-                        currentSweepAngle = 20
+
                         canvas?.drawArc(
                             coordinates.apply {
-                                val delta = currentSweepAngle?.toFloat() ?: 0f
-                                top += delta
-                                bottom -= delta
-                                right -= delta
-                                left += delta
+                                top = defaultRectF.top - sector.currentIncreasingDelta
+                                bottom = defaultRectF.bottom + sector.currentIncreasingDelta
+                                right = defaultRectF.right + sector.currentIncreasingDelta
+                                left = defaultRectF.left - sector.currentIncreasingDelta
                             },
                             startAngle,
                             sweepAngle,
@@ -203,48 +138,9 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
                             paint.changeColor(data.color)
                         )
 
-
-
                         sectorsIcons[index].apply {
-                            val delta = 4
-                            when (startAngle + sweepAngle / 2) {
-                                in 0f..90f -> {
-                                    bounds.left -= currentSweepAngle!! / delta
-                                    bounds.top -= currentSweepAngle!! / delta
-                                    bounds.right -= currentSweepAngle!! / delta
-                                    bounds.bottom -= currentSweepAngle!! / delta
-                                }
-
-                                in 90.1f..180f -> {
-                                    bounds.left += currentSweepAngle!! / delta
-                                    bounds.top -= currentSweepAngle!! / delta
-                                    bounds.right += currentSweepAngle!! / delta
-                                    bounds.bottom -= currentSweepAngle!! / delta
-                                }
-
-                                in 180.1f..270f -> {
-                                    bounds.left += currentSweepAngle!! / delta
-                                    bounds.top += currentSweepAngle!! / delta
-                                    bounds.right += currentSweepAngle!! / delta
-                                    bounds.bottom += currentSweepAngle!! / delta
-                                }
-
-                                else -> {
-                                    bounds.left -= currentSweepAngle!! / delta
-                                    bounds.top += currentSweepAngle!! / delta
-                                    bounds.right -= currentSweepAngle!! / delta
-                                    bounds.bottom += currentSweepAngle!! / delta
-                                }
-                            }
+                            //TODO right bounds
                         }.draw(canvas!!)
-
-                        if (isAnimationOffOn) arcAnimationOff.start()
-                        counterCloseAnimation++
-                        if (counterCloseAnimation > 5) {
-                            isAnimationOffOn = false
-                            counterCloseAnimation = 0
-                        }
-
                     } else {
                         //Default case
                         Log.d(javaClass.simpleName, "default case")
@@ -335,15 +231,50 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         }
     }
 
+    private fun createAndStartOpenValueAnimator(sector: SectorModel) {
+        ValueAnimator.ofFloat(0f, increaseCoefficient)
+            .apply {
+                interpolator = LinearInterpolator()
+                duration = SECTOR_OPEN_CLOSE_ANIMATION_DURATION
+                addUpdateListener { animator ->
+                    sector.currentIncreasingDelta = animator.animatedValue as Float
+                    invalidate()
+                }
+                setOnAnimationStartListener {
+                    sector.isAnimationOn = true
+                }
+                setOnAnimationEndListener {
+                    sector.isAnimationOn = false
+                }
+            }.start()
+    }
+
+    private fun createAndStartCloseValueAnimator(sector: SectorModel) {
+        ValueAnimator.ofFloat(increaseCoefficient, 0f)
+            .apply {
+                interpolator = LinearInterpolator()
+                duration = SECTOR_OPEN_CLOSE_ANIMATION_DURATION
+                addUpdateListener { animator ->
+                    sector.currentIncreasingDelta = animator.animatedValue as Float
+                    Log.d(javaClass.simpleName, "${animator.animatedValue as Float}" )
+                    invalidate()
+                }
+                setOnAnimationStartListener {
+                    sector.isAnimationOn = true
+                }
+                setOnAnimationEndListener {
+                    sector.isAnimationOn = false
+                }
+            }.start()
+    }
+
     private fun resetSectorAnimationFlags(sector: SectorModel) {
         if (!sector.isActive) {
             sector.isActive = true
-            sector.isAnimationOn = true
-            invalidate()
+            createAndStartOpenValueAnimator(sector)
         } else {
             sector.isActive = false
-            sector.isAnimationOffOn = true
-            invalidate()
+            createAndStartCloseValueAnimator(sector)
         }
     }
 
@@ -423,7 +354,7 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         sector.apply {
 
             //This strange angle calculation cause of different system coordinates
-            val imageAngleFromCircleCenterInDegree = -(startAngle + (sweepAngle / 2) + 90) + 180
+            val imageAngleFromCircleCenterInDegree = 90 - startAngle - sweepAngle / 2
             val angleInRad = imageAngleFromCircleCenterInDegree.toRadian()
             val deltaX = (radius * 1.5f * sin(angleInRad))
             val deltaY = (radius * 1.5f * cos(angleInRad))
@@ -488,6 +419,29 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         this.apply {
             color = ContextCompat.getColor(context, colorId)
         }
+
+    private fun ValueAnimator.setOnAnimationEndListener(action: () -> Unit) {
+        addListener(object : Animator.AnimatorListener {
+            override fun onAnimationRepeat(animation: Animator?) {}
+            override fun onAnimationEnd(animation: Animator?) {
+                action.invoke()
+            }
+            override fun onAnimationCancel(animation: Animator?) {}
+            override fun onAnimationStart(animation: Animator?) {}
+
+        })
+    }
+
+    private fun ValueAnimator.setOnAnimationStartListener(action: () -> Unit) {
+        addListener(object : Animator.AnimatorListener {
+            override fun onAnimationRepeat(animation: Animator?) {}
+            override fun onAnimationEnd(animation: Animator?) {}
+            override fun onAnimationCancel(animation: Animator?) {}
+            override fun onAnimationStart(animation: Animator?) {
+                action.invoke()
+            }
+        })
+    }
 
     private fun RectF.copy() =
         RectF(
