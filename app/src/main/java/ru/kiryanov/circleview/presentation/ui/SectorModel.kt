@@ -1,5 +1,6 @@
 package ru.kiryanov.circleview.presentation.ui
 
+import android.animation.ValueAnimator
 import android.graphics.RectF
 import androidx.annotation.ColorRes
 import androidx.annotation.DrawableRes
@@ -12,6 +13,9 @@ data class SectorModel(
     var isActive  : Boolean = false,
     var isAnimationOn  : Boolean = false,
     var currentIncreasingDelta : Float = 0f,
+    var mutableRadius : Float = 0f,
+    var openValueAnimator : ValueAnimator? = null,
+    var closeValueAnimator: ValueAnimator? = null,
     val data : Data
 ){
      class Data(

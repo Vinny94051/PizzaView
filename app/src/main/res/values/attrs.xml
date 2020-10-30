@@ -6,6 +6,8 @@
         <attr name="circle_radius" format="dimension" />
         <attr name="stroke_width" format="dimension"/>
         <attr name="sector_amount" format="integer"/>
+        <attr name="increasing_offset" format="dimension"/>
+        <attr name="animation_duration" format="float"/>
     </declare-styleable>
 
     <declare-styleable name="sector_view">

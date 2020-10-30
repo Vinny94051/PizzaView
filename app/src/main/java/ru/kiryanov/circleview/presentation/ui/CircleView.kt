@@ -18,6 +18,7 @@ import androidx.annotation.ColorRes
 import androidx.annotation.DrawableRes
 import androidx.annotation.Nullable
 import androidx.core.content.ContextCompat
+import androidx.core.content.res.ResourcesCompat
 import ru.kiryanov.circleview.R
 import kotlin.math.*
 
@@ -25,7 +26,6 @@ import kotlin.math.*
 class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(context, atrSet) {
 
     companion object {
-        private const val SECTOR_OPEN_CLOSE_ANIMATION_DURATION = 200L
         private const val MIN_HOLDING_SECTOR_TIME_IN_MILLS = 40
         private const val MAX_HOLDING_SECTOR_TIME_IN_MILLS = 1000
     }
@@ -35,22 +35,16 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
     var centerOfY = 0f
     var radius = 0f
     var increaseCoefficient: Float = 0f
-        get() {
-            return if (field == 0f)
-                radius / 3
-            else
-                field
-        }
 
     private var sectorAmount: Int
     private val sectors = mutableListOf<SectorModel>()
     private var clickListener: ((x: Float, y: Float) -> Unit)? = null
     private val defaultRectF = RectF()
     private var openedRectF = RectF()
-    private var isOpenedRectFUpdated = false
     private val sectorsIcons = mutableListOf<Drawable>()
     private val sectorIconsOffsets = mutableListOf<Rect>()
 
+    val animationDuration: Long
     var sectorsInfo: List<SectorModel.Data>? = null
         set(value) {
             field = value
@@ -71,15 +65,17 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         ).apply {
             sectorAmount = getInteger(R.styleable.circleview_sector_amount, 1)
             radius = getDimension(R.styleable.circleview_circle_radius, 0f)
+            animationDuration = getFloat(R.styleable.circleview_animation_duration, 200f).toLong()
+            increaseCoefficient = getDimension(R.styleable.circleview_increasing_offset, radius / 3)
         }
         paint.initPaint(android.R.color.holo_blue_dark)
         setTouchListener()
     }
 
-    //TODO right on Measure calculation
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
-        setMeasuredDimension((radius * 3).toInt(), (radius * 3).toInt())
+        val viewSideLength = ((increaseCoefficient + radius) * 2).toInt()
+        setMeasuredDimension(viewSideLength, viewSideLength)
     }
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
@@ -99,7 +95,6 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
 
         sectors.forEachIndexed { index, sector ->
             sector.apply {
-
                 if (isActive && isAnimationOn) {
                     //Open sector by tap
 
@@ -117,8 +112,13 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
                     )
 
                     sectorsIcons[index].apply {
+                        mutableRadius = radius + sector.currentIncreasingDelta
+                        bounds = calculateOffsetImageBounds(this, calculateImageCenterPoint(sector))
                     }.draw(canvas!!)
 
+                    if (coordinates == openedRectF) {
+                        isAnimationOn = false
+                    }
 
                 } else {
 
@@ -139,19 +139,24 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
                         )
 
                         sectorsIcons[index].apply {
-                            //TODO right bounds
+                            mutableRadius = radius + sector.currentIncreasingDelta
+                            bounds =
+                                calculateOffsetImageBounds(this, calculateImageCenterPoint(sector))
                         }.draw(canvas!!)
+
+                        if (coordinates == defaultRectF) {
+                            isAnimationOn = true
+                        }
                     } else {
                         //Default case
-                        Log.d(javaClass.simpleName, "default case")
                         canvas?.drawArc(
                             coordinates, startAngle, sweepAngle, true,
                             paint.changeColor(data.color)
                         )
                     }
-                    canvas?.let { canva ->
-                        sectorsIcons.forEach {
-                            it.draw(canva)
+                    canvas?.let { _canvas ->
+                        sectorsIcons.forEach { drawable ->
+                            drawable.draw(_canvas)
                         }
                     }
                 }
@@ -205,6 +210,13 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
             this.bottom = bottom
         }
 
+        openedRectF.apply {
+            this.left = defaultRectF.left - increaseCoefficient
+            this.right = defaultRectF.right + increaseCoefficient
+            this.top = defaultRectF.top - increaseCoefficient
+            this.bottom = defaultRectF.bottom + increaseCoefficient
+        }
+
         if (sectors.size != sectorAmount && sectorsIcons.size != sectorAmount) {
             sectorsInfo?.let { info ->
                 if (info.size < sectorAmount) {
@@ -212,18 +224,28 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
                 } else {
                     for (sectorNumber in 0 until sectorAmount) {
                         sectors.add(
+
                             SectorModel(
                                 sectorNumber, sectorNumber * sectorArc, sectorArc,
-                                RectF(left, top, right, bottom), data = info[sectorNumber]
+                                RectF(left, top, right, bottom),
+                                mutableRadius = radius,
+                                data = info[sectorNumber]
                             ).apply {
                                 initImage(this.data.drawable, this)
                                 sectorIconsOffsets.add(
                                     calculateOffsetImageBounds(
-                                        this.data.drawable,
+                                        ResourcesCompat.getDrawable(
+                                            resources,
+                                            this.data.drawable,
+                                            null
+                                        )!!,
                                         calculateImageCenterPoint(this)
                                     )
                                 )
+                                openValueAnimator = createOpenValueAnimator(this)
+                                closeValueAnimator = createCloseValueAnimator(this)
                             }
+
                         )
                     }
                 }
@@ -231,11 +253,11 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         }
     }
 
-    private fun createAndStartOpenValueAnimator(sector: SectorModel) {
+    private fun createOpenValueAnimator(sector: SectorModel) =
         ValueAnimator.ofFloat(0f, increaseCoefficient)
             .apply {
                 interpolator = LinearInterpolator()
-                duration = SECTOR_OPEN_CLOSE_ANIMATION_DURATION
+                duration = animationDuration
                 addUpdateListener { animator ->
                     sector.currentIncreasingDelta = animator.animatedValue as Float
                     invalidate()
@@ -243,42 +265,40 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
                 setOnAnimationStartListener {
                     sector.isAnimationOn = true
                 }
-                setOnAnimationEndListener {
-                    sector.isAnimationOn = false
-                }
-            }.start()
-    }
+            }
 
-    private fun createAndStartCloseValueAnimator(sector: SectorModel) {
+    private fun createCloseValueAnimator(sector: SectorModel) =
         ValueAnimator.ofFloat(increaseCoefficient, 0f)
             .apply {
                 interpolator = LinearInterpolator()
-                duration = SECTOR_OPEN_CLOSE_ANIMATION_DURATION
+                duration = animationDuration
                 addUpdateListener { animator ->
                     sector.currentIncreasingDelta = animator.animatedValue as Float
-                    Log.d(javaClass.simpleName, "${animator.animatedValue as Float}" )
+                    Log.d(javaClass.simpleName, "${animator.animatedValue as Float}")
                     invalidate()
                 }
                 setOnAnimationStartListener {
                     sector.isAnimationOn = true
                 }
-                setOnAnimationEndListener {
-                    sector.isAnimationOn = false
-                }
-            }.start()
-    }
+            }
 
     private fun resetSectorAnimationFlags(sector: SectorModel) {
-        if (!sector.isActive) {
-            sector.isActive = true
-            createAndStartOpenValueAnimator(sector)
-        } else {
-            sector.isActive = false
-            createAndStartCloseValueAnimator(sector)
+        sector.apply {
+            if (!isActive) {
+                isActive = true
+                closeValueAnimator?.cancel()
+                openValueAnimator?.start()
+            } else {
+                isActive = false
+                openValueAnimator?.cancel()
+                closeValueAnimator?.start()
+            }
         }
     }
 
     private fun findSectorByCoordinates(x: Float, y: Float): Int? {
+
+        if (sectorAmount == 1) return 0
 
         if (x in openedRectF.left..openedRectF.right &&
             y in openedRectF.top..openedRectF.bottom
@@ -334,11 +354,10 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
     }
 
     @SuppressLint("UseCompatLoadingForDrawables")
-    private fun calculateOffsetImageBounds(@DrawableRes drawable: Int, point: Point): Rect {
+    private fun calculateOffsetImageBounds(image: Drawable, point: Point): Rect {
         val delta = 2
         val imageCenterX = point.x
         val imageCenterY = point.y
-        val image: Drawable = resources.getDrawable(drawable, null)
 
         return Rect(
             (imageCenterX - image.minimumWidth).toInt() / delta,
@@ -352,12 +371,12 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         val x: Float
         val y: Float
         sector.apply {
-
+            val rad = if (mutableRadius != 0f) mutableRadius else radius
             //This strange angle calculation cause of different system coordinates
             val imageAngleFromCircleCenterInDegree = 90 - startAngle - sweepAngle / 2
             val angleInRad = imageAngleFromCircleCenterInDegree.toRadian()
-            val deltaX = (radius * 1.5f * sin(angleInRad))
-            val deltaY = (radius * 1.5f * cos(angleInRad))
+            val deltaX = (rad * 1.5f * sin(angleInRad))
+            val deltaY = (rad * 1.5f * cos(angleInRad))
 
             x = (coordinates.centerX() * 2) + deltaX
             y = (coordinates.centerY() * 2) + deltaY
@@ -365,45 +384,6 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         }
 
         return Point(x, y)
-    }
-
-    private fun calculateImageOffsetPoint(sector: SectorModel): Point {
-        val centerPoint = calculateImageCenterPoint(sector)
-
-        val centerX = centerPoint.x
-        val centerY = centerPoint.y
-
-        val alpha = (sector.sweepAngle / 2).toRadian()
-
-        when (sector.startAngle + sector.sweepAngle / 2) {
-            in 0f..90f -> {
-                return Point(
-                    (radius * sin(alpha) + 3 * centerX) / 3,
-                    (radius * cos(alpha) + 3 * centerY) / 3
-                )
-            }
-
-            in 90.1f..180f -> {
-                return Point(
-                    (-radius * sin(alpha) - 3 * centerX) / 3,
-                    (radius * cos(alpha) + 3 * centerY) / 3
-                )
-            }
-
-            in 180.1f..270f -> {
-                return Point(
-                    (-radius * sin(alpha) - 3 * centerX) / 3,
-                    (-radius * cos(alpha) - 3 * centerY) / 3
-                )
-            }
-
-            else -> {
-                return Point(
-                    (radius * sin(alpha) + 3 * centerX) / 3,
-                    (radius * cos(alpha) + 3 * centerY) / 3
-                )
-            }
-        }
     }
 
     private inner class Point(val x: Float, val y: Float)
@@ -420,18 +400,6 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
             color = ContextCompat.getColor(context, colorId)
         }
 
-    private fun ValueAnimator.setOnAnimationEndListener(action: () -> Unit) {
-        addListener(object : Animator.AnimatorListener {
-            override fun onAnimationRepeat(animation: Animator?) {}
-            override fun onAnimationEnd(animation: Animator?) {
-                action.invoke()
-            }
-            override fun onAnimationCancel(animation: Animator?) {}
-            override fun onAnimationStart(animation: Animator?) {}
-
-        })
-    }
-
     private fun ValueAnimator.setOnAnimationStartListener(action: () -> Unit) {
         addListener(object : Animator.AnimatorListener {
             override fun onAnimationRepeat(animation: Animator?) {}
@@ -442,14 +410,6 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
             }
         })
     }
-
-    private fun RectF.copy() =
-        RectF(
-            this.left,
-            this.top,
-            this.right,
-            this.bottom
-        )
 
     private fun Float.toRadian(): Float = (this * PI / 180).toFloat()
     private fun Float.toDegree(): Float = (this / PI * 180).toFloat()
