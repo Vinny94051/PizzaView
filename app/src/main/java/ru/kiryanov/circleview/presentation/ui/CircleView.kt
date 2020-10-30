@@ -45,7 +45,7 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
     private val sectorIconsOffsets = mutableListOf<Rect>()
 
     val animationDuration: Long
-    var sectorsInfo: List<SectorModel.Data>? = null
+    var sectorsInfo: List<Data>? = null
         set(value) {
             field = value
             invalidate()
@@ -92,71 +92,25 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
     @SuppressLint("DrawAllocation")
     override fun onDraw(canvas: Canvas?) {
         super.onDraw(canvas)
-
         sectors.forEachIndexed { index, sector ->
             sector.apply {
                 if (isActive && isAnimationOn) {
                     //Open sector by tap
-
-                    canvas?.drawArc(
-                        coordinates.apply {
-                            top = defaultRectF.top - sector.currentIncreasingDelta
-                            bottom = defaultRectF.bottom + sector.currentIncreasingDelta
-                            right = defaultRectF.right + sector.currentIncreasingDelta
-                            left = defaultRectF.left - sector.currentIncreasingDelta
-                        },
-                        startAngle,
-                        sweepAngle,
-                        true,
-                        paint.changeColor(data.color)
-                    )
-
-                    sectorsIcons[index].apply {
-                        mutableRadius = radius + sector.currentIncreasingDelta
-                        bounds = calculateOffsetImageBounds(this, calculateImageCenterPoint(sector))
-                    }.draw(canvas!!)
-
-                    if (coordinates == openedRectF) {
-                        isAnimationOn = false
-                    }
-
+                    animateSector(this, index, canvas)
+                    if (openValueAnimator?.isRunning == false) isAnimationOn = false
                 } else {
-
                     if (!isActive && isAnimationOn) {
                         //Close activated sector
-
-                        canvas?.drawArc(
-                            coordinates.apply {
-                                top = defaultRectF.top - sector.currentIncreasingDelta
-                                bottom = defaultRectF.bottom + sector.currentIncreasingDelta
-                                right = defaultRectF.right + sector.currentIncreasingDelta
-                                left = defaultRectF.left - sector.currentIncreasingDelta
-                            },
-                            startAngle,
-                            sweepAngle,
-                            true,
-                            paint.changeColor(data.color)
-                        )
-
-                        sectorsIcons[index].apply {
-                            mutableRadius = radius + sector.currentIncreasingDelta
-                            bounds =
-                                calculateOffsetImageBounds(this, calculateImageCenterPoint(sector))
-                        }.draw(canvas!!)
-
-                        if (coordinates == defaultRectF) {
-                            isAnimationOn = true
-                        }
+                        animateSector(this, index, canvas)
+                        if (closeValueAnimator?.isRunning == false) isAnimationOn = true
                     } else {
                         //Default case
-                        canvas?.drawArc(
-                            coordinates, startAngle, sweepAngle, true,
-                            paint.changeColor(data.color)
-                        )
-                    }
-                    canvas?.let { _canvas ->
-                        sectorsIcons.forEach { drawable ->
-                            drawable.draw(_canvas)
+                        with(canvas!!) {
+                            drawArc(coordinates, startAngle, sweepAngle, true,
+                                paint.changeColor(data.color))
+                            sectorsIcons.forEach { drawable ->
+                                drawable.draw(this)
+                            }
                         }
                     }
                 }
@@ -179,7 +133,7 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
                 return@setOnTouchListener true
             } else if (event.action == MotionEvent.ACTION_UP) {
                 actionUpClickTime = System.currentTimeMillis()
-                if (isRightAction()) {
+                if (isClickAction()) {
                     clickListener?.invoke(eventX, eventY)
                 }
 
@@ -190,12 +144,83 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         }
     }
 
-    private fun isRightAction() =
+    private fun animateSector(sector: SectorModel, sectorIndex: Int, canvas: Canvas?) {
+        with(sector) {
+            canvas?.drawArc(
+                coordinates.apply {
+                    top = defaultRectF.top - sector.currentIncreasingDelta
+                    bottom = defaultRectF.bottom + sector.currentIncreasingDelta
+                    right = defaultRectF.right + sector.currentIncreasingDelta
+                    left = defaultRectF.left - sector.currentIncreasingDelta
+                },
+                startAngle,
+                sweepAngle,
+                true,
+                paint.changeColor(data.color)
+            )
+
+            sectorsIcons[sectorIndex].apply {
+                mutableRadius = radius + sector.currentIncreasingDelta
+                bounds = calculateOffsetImageBounds(
+                    this,
+                    calculateImageCenterPoint(sector)
+                )
+            }.draw(canvas!!)
+        }
+    }
+
+    private fun isClickAction() =
         (actionUpClickTime - actionDownClickTime) in
                 MIN_HOLDING_SECTOR_TIME_IN_MILLS..MAX_HOLDING_SECTOR_TIME_IN_MILLS
 
 
     private fun initSectors() {
+        initCenterPointAndBounds()
+        if (sectors.size != sectorAmount && sectorsIcons.size != sectorAmount) {
+            sectorsInfo?.let { info ->
+                if (info.size < sectorAmount) {
+                    throw NotEnoughInfoException(
+                        "Info.size = ${info.size} <->" +
+                                " SectorAmount = $sectorAmount"
+                    )
+                } else {
+                    for (sectorNumber in 0 until sectorAmount) {
+                        sectors.add(createSector(sectorNumber, info[sectorNumber]))
+                    }
+                }
+            }
+        }
+    }
+
+    private fun createSector(sectorNumber: Int, data: Data): SectorModel {
+        return SectorModel(
+            sectorNumber, sectorNumber * sectorArc, sectorArc,
+            RectF(
+                defaultRectF.left,
+                defaultRectF.top,
+                defaultRectF.right,
+                defaultRectF.bottom
+            ),
+            mutableRadius = radius,
+            data = data
+        ).apply {
+            initImage(this.data.drawable, this)
+            sectorIconsOffsets.add(
+                calculateOffsetImageBounds(
+                    ResourcesCompat.getDrawable(
+                        resources,
+                        this.data.drawable,
+                        null
+                    )!!,
+                    calculateImageCenterPoint(this)
+                )
+            )
+            openValueAnimator = createOpenValueAnimator(this)
+            closeValueAnimator = createCloseValueAnimator(this)
+        }
+    }
+
+    private fun initCenterPointAndBounds() {
         centerOfX = (width / 2).toFloat()
         centerOfY = (height / 2).toFloat()
         val left = centerOfX - radius
@@ -215,41 +240,6 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
             this.right = defaultRectF.right + increaseCoefficient
             this.top = defaultRectF.top - increaseCoefficient
             this.bottom = defaultRectF.bottom + increaseCoefficient
-        }
-
-        if (sectors.size != sectorAmount && sectorsIcons.size != sectorAmount) {
-            sectorsInfo?.let { info ->
-                if (info.size < sectorAmount) {
-                    throw NotEnoughInfoException("Info.size = ${info.size} <-> SectorAmount = $sectorAmount")
-                } else {
-                    for (sectorNumber in 0 until sectorAmount) {
-                        sectors.add(
-
-                            SectorModel(
-                                sectorNumber, sectorNumber * sectorArc, sectorArc,
-                                RectF(left, top, right, bottom),
-                                mutableRadius = radius,
-                                data = info[sectorNumber]
-                            ).apply {
-                                initImage(this.data.drawable, this)
-                                sectorIconsOffsets.add(
-                                    calculateOffsetImageBounds(
-                                        ResourcesCompat.getDrawable(
-                                            resources,
-                                            this.data.drawable,
-                                            null
-                                        )!!,
-                                        calculateImageCenterPoint(this)
-                                    )
-                                )
-                                openValueAnimator = createOpenValueAnimator(this)
-                                closeValueAnimator = createCloseValueAnimator(this)
-                            }
-
-                        )
-                    }
-                }
-            }
         }
     }
 
@@ -325,7 +315,7 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         if (angle in 0f..sectors[1].startAngle) return 0
 
         for (index in 1..sectors.size - 2) {
-            if (angle in sectors[index - 1].startAngle..sectors[index + 1].startAngle) {
+            if (angle in sectors[index].startAngle..sectors[index + 1].startAngle) {
                 return index
             }
         }
@@ -388,6 +378,20 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
 
     private inner class Point(val x: Float, val y: Float)
     class NotEnoughInfoException(message: String) : Throwable(message)
+
+    private inner class SectorModel(
+        val sectorNumber: Int,
+        val startAngle: Float,
+        val sweepAngle: Float,
+        var coordinates: RectF,
+        var isActive: Boolean = false,
+        var isAnimationOn: Boolean = false,
+        var currentIncreasingDelta: Float = 0f,
+        var mutableRadius: Float = 0f,
+        var openValueAnimator: ValueAnimator? = null,
+        var closeValueAnimator: ValueAnimator? = null,
+        val data: Data
+    )
 
     private fun Paint.initPaint(@ColorRes colorId: Int) =
         this.apply {
