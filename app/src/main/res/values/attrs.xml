@@ -4,9 +4,10 @@
     <declare-styleable name="circleview">
         <attr name="circle_background" format="color" />
         <attr name="circle_radius" format="dimension" />
-        <attr name="stroke_width" format="dimension"/>
-        <attr name="sector_amount" format="integer"/>
-        <attr name="increasing_offset" format="dimension"/>
-        <attr name="animation_duration" format="float"/>
+        <attr name="stroke_width" format="dimension" />
+        <attr name="sector_amount" format="integer" />
+        <attr name="increasing_offset" format="dimension" />
+        <attr name="animation_duration" format="float" />
+        <attr name="icon_offset_by_center_in_radius" format="float" />
     </declare-styleable>
 </resources>
