@@ -24,7 +24,9 @@ class CustomViewFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        circle.sectorsInfo = initCircleView()
+        setInfoBtn.setOnClickListener {
+            circle.setSectorsInfo(initCircleView())
+        }
     }
 
 

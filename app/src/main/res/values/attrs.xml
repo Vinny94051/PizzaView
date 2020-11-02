@@ -9,5 +9,7 @@
         <attr name="increasing_offset" format="dimension" />
         <attr name="animation_duration" format="float" />
         <attr name="icon_offset_by_center_in_radius" format="float" />
+        <attr name="min_click_time_in_mills" format="integer" />
+        <attr name="max_click_time_in_mills" format="integer" />
     </declare-styleable>
 </resources>
