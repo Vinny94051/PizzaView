@@ -9,7 +9,6 @@
         android:id="@+id/setInfoBtn"
         android:layout_width="144dp"
         android:layout_height="40dp"
-        android:layout_centerHorizontal="true"
         android:layout_marginTop="32dp"
         android:elevation="64dp"
         android:text="Set circle view info"
@@ -21,8 +20,6 @@
         android:layout_height="wrap_content"
         android:layout_centerInParent="true"
         circle:animation_duration="200"
-        circle:circle_radius="100dp"
-        circle:increasing_offset="33dp"
-        circle:sector_amount="8" />
+        circle:circle_radius="100dp" />
 
 </RelativeLayout>
