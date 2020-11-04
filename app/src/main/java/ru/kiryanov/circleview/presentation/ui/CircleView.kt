@@ -96,25 +96,20 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         val heightSpecMode = MeasureSpec.getMode(heightMeasureSpec)
         val heightSize = MeasureSpec.getSize(heightMeasureSpec)
 
-        when {
-            widthSpecMode == MeasureSpec.AT_MOST && heightSpecMode == MeasureSpec.AT_MOST && radius == 0f -> throw RadiusNotFoundException(
-                "Radius not defied"
-            )
-            widthSpecMode == MeasureSpec.AT_MOST && heightSpecMode == MeasureSpec.AT_MOST && radius != 0f -> {
-                val viewSideLength = ((increasingOffset + radius) * 2).toInt()
-                setMeasuredDimension(viewSideLength, viewSideLength)
+        if (radius == 0f) radius = when {
+            widthSpecMode == MeasureSpec.AT_MOST && heightSpecMode == MeasureSpec.AT_MOST -> {
+                throw RadiusNotFoundException(
+                    "Combination height:wrap_content; width:wrap_content;" +
+                            " radius:not_found doest not supported"
+                )
             }
-
-            widthSpecMode == MeasureSpec.AT_MOST && heightSpecMode != MeasureSpec.AT_MOST -> {
-                radius = heightSize / 3f
-                setMeasuredDimension(heightSize, heightSize)
-            }
-
-            heightSpecMode == MeasureSpec.AT_MOST && widthSpecMode != MeasureSpec.AT_MOST -> {
-                radius = widthSize / 3f
-                setMeasuredDimension(widthSize, widthSize)
-            }
+            widthSpecMode == MeasureSpec.AT_MOST -> (heightSize - increasingOffset) / 2f
+            heightSpecMode == MeasureSpec.AT_MOST -> (widthSize - increasingOffset) / 2f
+            else -> 0f
         }
+
+        val viewSideLength: Int = ((increasingOffset + radius) * 2).toInt()
+        setMeasuredDimension(viewSideLength, viewSideLength)
     }
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
