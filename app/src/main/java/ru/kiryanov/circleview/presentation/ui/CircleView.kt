@@ -21,55 +21,62 @@ import kotlin.math.*
 
 class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(context, atrSet) {
     var radius = 0f
-    val iconOffsetByCenterInRadius: Float
-    val animationDuration: Long
+    var iconOffsetCoefficientFromCenter: Float
+    var animationDuration: Long
     var increasingOffset: Float = 0f
-        get() = if (field == 0f) radius / 3 else field
     private var paint: Paint = Paint()
     private var centerOfX = 0f
     private var centerOfY = 0f
     private val minClickTimeInMills: Int
     private val maxClickTimeInMills: Int
-    private var sectorAmount: Int = 0
+    private val sectorAmount: Int
+        get() = sectors.size
     private var sectors = mutableListOf<SectorModel>()
     private var clickListener: ((x: Float, y: Float) -> Unit)? = null
     private val sectorArc: Float
         get() = 360f.div(sectorAmount.toFloat())
 
+    private var actionDownClickTime: Long = 0L
+    private var actionUpClickTime: Long = 0L
+    private var eventX: Float = 0f
+    private var eventY: Float = 0f
 
     init {
         context.theme.obtainStyledAttributes(
             atrSet,
             R.styleable.circleview, 0, 0
         ).apply {
-            radius = getDimension(R.styleable.circleview_circle_radius, 0f)
-            animationDuration = getFloat(R.styleable.circleview_animation_duration, 200f)
+            radius = getDimension(R.styleable.circleview_circle_radius, DEFAULT_RADIUS)
+            animationDuration = getFloat(
+                R.styleable.circleview_animation_duration,
+                DEFAULT_ANIMATION_DURATION_IN_MILLS
+            )
                 .toLong()
             increasingOffset = getDimension(
                 R.styleable.circleview_increasing_offset,
-                0f
+                radius / 3
             )
 
             minClickTimeInMills = getInteger(
                 R.styleable.circleview_min_click_time_in_mills,
-                0
+                DEFAULT_MIN_CLICK_TIME_INTERVAL
             )
             maxClickTimeInMills = getInteger(
                 R.styleable.circleview_max_click_time_in_mills,
-                1000
+                DEFAULT_MAX_CLICK_TIME_INTERVAL
             )
 
             val tmpIconOffset = getFloat(
                 R.styleable.circleview_icon_offset_by_center_in_radius,
-                1.5f
+                DEFAULT_ICON_OFFSET_COEFFICIENT
             )
-            if (tmpIconOffset !in 1.1f..1.9f) {
-                throw IconOffsetLengthException(
-                    "Icon offset by center " +
-                            "in radius should be in 1.1f..1.9f range."
-                )
+            if (tmpIconOffset in 0.1f..0.9f) {
+                iconOffsetCoefficientFromCenter = tmpIconOffset
             } else {
-                iconOffsetByCenterInRadius = tmpIconOffset
+                throw IconOffsetLengthException(
+                    "Icon offset coefficient by center " +
+                            " should be in 0.1f..0.9f range."
+                )
             }
         }
 
@@ -96,17 +103,16 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         val heightSpecMode = MeasureSpec.getMode(heightMeasureSpec)
         val heightSize = MeasureSpec.getSize(heightMeasureSpec)
 
-        if (radius == 0f) radius = when {
-            widthSpecMode == MeasureSpec.AT_MOST && heightSpecMode == MeasureSpec.AT_MOST -> {
-                throw RadiusNotFoundException(
-                    "Combination height:wrap_content; width:wrap_content;" +
-                            " radius:not_found doest not supported"
-                )
-            }
-            widthSpecMode == MeasureSpec.AT_MOST -> (heightSize - increasingOffset) / 2f
-            heightSpecMode == MeasureSpec.AT_MOST -> (widthSize - increasingOffset) / 2f
-            else -> 0f
+        val (radius, increasingOffset) = when {
+            widthSpecMode == MeasureSpec.AT_MOST && heightSpecMode == MeasureSpec.AT_MOST ->
+                radius to increasingOffset
+            widthSpecMode == MeasureSpec.AT_MOST -> calculateCircleParams(heightSize)
+            heightSpecMode == MeasureSpec.AT_MOST -> calculateCircleParams(widthSize)
+            else -> calculateCircleParams(min(heightSize, widthSize))
         }
+
+        this.radius = radius
+        this.increasingOffset = increasingOffset
 
         val viewSideLength: Int = ((increasingOffset + radius) * 2).toInt()
         setMeasuredDimension(viewSideLength, viewSideLength)
@@ -117,8 +123,7 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         initCenterPoint()
     }
 
-    @SuppressLint("DrawAllocation")
-    override fun onDraw(canvas: Canvas?) {
+    override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         sectors.forEach { sector ->
             sector.apply {
@@ -127,10 +132,10 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         }
     }
 
-    private fun drawSector(sector: SectorModel, canvas: Canvas?) {
+    private fun drawSector(sector: SectorModel, canvas: Canvas) {
         with(sector) {
             val increasingDelta = sector.openValueAnimator.animatedValue as Float
-            canvas?.drawArc(
+            canvas.drawArc(
                 RectF(
                     centerOfX - radius - increasingDelta,
                     centerOfY - radius - increasingDelta,
@@ -150,14 +155,9 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
                     this,
                     calculateIconCenterPoint(sector)
                 )
-            }?.draw(canvas!!)
+            }?.draw(canvas)
         }
     }
-
-    private var actionDownClickTime: Long = 0L
-    private var actionUpClickTime: Long = 0L
-    private var eventX: Float = 0f
-    private var eventY: Float = 0f
 
     @SuppressLint("ClickableViewAccessibility")
     private fun setTouchListener() {
@@ -197,6 +197,12 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         }
     }
 
+    private fun calculateCircleParams(sideSize: Int): Pair<Float, Float> {
+        val offset = if (increasingOffset == 0f) sideSize / 8f else increasingOffset
+        val radius = sideSize / 2 - offset
+        return radius to offset
+    }
+
     private fun initCenterPoint() {
         centerOfX = (width / 2).toFloat()
         centerOfY = (height / 2).toFloat()
@@ -214,15 +220,10 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
 
     private fun startNecessaryAnimation(sector: SectorModel) {
         sector.apply {
-            if (!isActive) {
-                if (!openValueAnimator.isRunning) {
-                    isActive = true
-                    openValueAnimator.start()
-                }
-            } else {
-                isActive = false
-                openValueAnimator.reverse()
+            with(openValueAnimator) {
+                if (!isActive && !isRunning) start() else reverse()
             }
+            isActive = !isActive
         }
     }
 
@@ -247,23 +248,18 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
             (height / 2) - y,
             (width / 2) - x
         ).toDegree() + 180
-        //cause of 360 degree return sector.size => IndexBoundException
-        return truncate(if (angle == 360f) 359f / sectorArc else angle / sectorArc).toInt()
+
+        return truncate(angle / sectorArc).toInt().coerceAtMost(sectorAmount - 1)
     }
 
     @SuppressLint("UseCompatLoadingForDrawables")
     private fun initIcon(@DrawableRes drawable: Int, sector: SectorModel): Drawable {
         val icon: Drawable = resources.getDrawable(drawable, null)
-        with(calculateIconCenterPoint(sector)) {
-            icon.setBounds(
-                (x - icon.minimumWidth).toInt() / 2,
-                (y - icon.minimumHeight).toInt() / 2,
-                (x + icon.minimumWidth).toInt() / 2,
-                (y + icon.minimumHeight).toInt() / 2
-            )
-        }
+        icon.bounds = calculateOffsetIconBounds(icon, calculateIconCenterPoint(sector))
         return icon
     }
+
+    private inner class Point(val x: Float, val y: Float)
 
     @SuppressLint("UseCompatLoadingForDrawables")
     private fun calculateOffsetIconBounds(icon: Drawable, point: Point): Rect {
@@ -271,44 +267,41 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         val iconCenterY = point.y
 
         return Rect(
-            (iconCenterX - icon.minimumWidth).toInt() / 2,
-            (iconCenterY - icon.minimumHeight).toInt() / 2,
-            (iconCenterX + icon.minimumWidth).toInt() / 2,
-            (iconCenterY + icon.minimumHeight).toInt() / 2
+            (iconCenterX - icon.minimumWidth / 2).toInt(),
+            (iconCenterY - icon.minimumHeight / 2).toInt(),
+            (iconCenterX + icon.minimumWidth / 2).toInt(),
+            (iconCenterY + icon.minimumHeight / 2).toInt()
         )
     }
 
     fun setSectorsInfo(sectorsInfo: List<SectorInfo>) {
         val sectors = mutableListOf<SectorModel>()
-        sectorAmount = sectorsInfo.size
-        for (sectorNumber in 0 until sectorAmount) {
-            sectors.add(createSector(sectorNumber, sectorsInfo[sectorNumber]))
+        sectorsInfo.forEachIndexed { index, sectorInfo ->
+            sectors.add(createSector(index, sectorInfo))
         }
         this@CircleView.sectors = sectors
         invalidate()
-
     }
 
     private fun calculateIconCenterPoint(sector: SectorModel): Point {
         val x: Float
         val y: Float
         sector.apply {
-            val rad = radius + sector.openValueAnimator.animatedValue as Float
+            val currentRadius = radius + sector.openValueAnimator.animatedValue as Float
             //This strange angle calculation cause of different system coordinates
             val iconAngleFromCircleCenterInDegree = 90 - startAngle - sectorArc / 2
             val angleInRad = iconAngleFromCircleCenterInDegree.toRadian()
-            val offsetX = (rad * iconOffsetByCenterInRadius * sin(angleInRad))
-            val offsetY = (rad * iconOffsetByCenterInRadius * cos(angleInRad))
+            val offsetX = (currentRadius * iconOffsetCoefficientFromCenter * sin(angleInRad))
+            val offsetY = (currentRadius * iconOffsetCoefficientFromCenter * cos(angleInRad))
 
-            x = (centerOfX * 2) + offsetX
-            y = (centerOfY * 2) + offsetY
+            x = centerOfX + offsetX
+            y = centerOfY + offsetY
         }
 
         return Point(x, y)
     }
 
-    private inner class Point(val x: Float, val y: Float)
-    class RadiusNotFoundException(message: String) : Throwable(message)
+
     class IconOffsetLengthException(message: String) : Throwable(message)
 
     private inner class SectorModel(
@@ -319,6 +312,12 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         var icon: Drawable? = null
     )
 
-    private fun Float.toRadian(): Float = (this * PI / 180).toFloat()
-    private fun Float.toDegree(): Float = (this / PI * 180).toFloat()
+    companion object {
+        private const val DEFAULT_ANIMATION_DURATION_IN_MILLS = 200f
+        private const val DEFAULT_RADIUS = 0f
+        private const val DEFAULT_MIN_CLICK_TIME_INTERVAL = 0
+        private const val DEFAULT_MAX_CLICK_TIME_INTERVAL = 1000
+        private const val DEFAULT_ICON_OFFSET_COEFFICIENT = 0.7f
+    }
+
 }
