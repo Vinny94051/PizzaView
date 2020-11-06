@@ -10,5 +10,6 @@
         <attr name="icon_offset_by_center_in_radius" format="float" />
         <attr name="min_click_time_in_mills" format="integer" />
         <attr name="max_click_time_in_mills" format="integer" />
+        <attr name="bounds_color" format="color"/>
     </declare-styleable>
 </resources>
