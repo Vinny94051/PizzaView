@@ -17,11 +17,12 @@
 
     <ru.kiryanov.circleview.presentation.ui.CircleView
         android:id="@+id/circle"
-        android:layout_width="400dp"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_centerInParent="true"
         android:layout_gravity="center"
-        circle:animation_duration="2000"
+        circle:animation_duration="100"
+        circle:circle_radius="100dp"
         />
 
 </RelativeLayout>

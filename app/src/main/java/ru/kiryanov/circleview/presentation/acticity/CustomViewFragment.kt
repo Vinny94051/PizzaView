@@ -36,66 +36,74 @@ class CustomViewFragment : Fragment() {
                 add(
                     SectorInfo(
                         android.R.color.holo_blue_dark,
-                        R.drawable.ic_baseline_account_circle_1
+                        android.R.color.darker_gray,
+                        drawableId = R.drawable.ic_baseline_account_circle_1
                     )
                 )
 
                 add(
                     SectorInfo(
                         android.R.color.darker_gray,
-                        R.drawable.ic_baseline_account_circle_2
+                        android.R.color.holo_blue_dark,
+                        drawableId = R.drawable.ic_baseline_account_circle_2
                     )
                 )
 
                 add(
                     SectorInfo(
                         android.R.color.holo_blue_light,
-                        R.drawable.ic_baseline_account_circle_3
+                        android.R.color.holo_red_dark,
+                        drawableId = R.drawable.ic_baseline_account_circle_3
                     )
                 )
 
                 add(
                     SectorInfo(
                         android.R.color.holo_red_dark,
-                        R.drawable.ic_baseline_account_circle_4
+                        drawableId = R.drawable.ic_baseline_account_circle_4
                     )
                 )
 
                 add(
                     SectorInfo(
                         android.R.color.holo_green_light,
-                        R.drawable.ic_baseline_account_circle_5
+                        android.R.color.darker_gray,
+                        drawableId = R.drawable.ic_baseline_account_circle_5
                     )
                 )
 
                 add(
                     SectorInfo(
                         android.R.color.holo_red_light,
-                        R.drawable.ic_baseline_account_circle_6
+                        android.R.color.holo_orange_light,
+                        drawableId = R.drawable.ic_baseline_account_circle_6
                     )
                 )
                 add(
                     SectorInfo(
                         android.R.color.holo_orange_light,
-                        R.drawable.ic_baseline_account_circle_3
+                        drawableId = R.drawable.ic_baseline_account_circle_3
                     )
                 )
                 add(
                     SectorInfo(
                         android.R.color.holo_blue_bright,
-                        R.drawable.ic_baseline_account_circle_2
+                        android.R.color.darker_gray,
+                        drawableId = R.drawable.ic_baseline_account_circle_2
                     )
                 )
                 add(
                     SectorInfo(
                         android.R.color.holo_green_light,
-                        R.drawable.ic_baseline_account_circle_1
+                        android.R.color.darker_gray,
+                        drawableId = R.drawable.ic_baseline_account_circle_1
                     )
                 )
                 add(
                     SectorInfo(
                         android.R.color.holo_red_light,
-                        R.drawable.ic_baseline_account_circle_5
+                        android.R.color.holo_blue_bright,
+                        drawableId = R.drawable.ic_baseline_account_circle_5
                     )
                 )
             }
