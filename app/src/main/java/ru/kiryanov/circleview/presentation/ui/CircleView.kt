@@ -70,14 +70,7 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
                 R.styleable.circleview_icon_offset_by_center_in_radius,
                 DEFAULT_ICON_OFFSET_COEFFICIENT
             )
-            if (tmpIconOffset in 0.1f..0.9f) {
-                iconOffsetCoefficientFromCenter = tmpIconOffset
-            } else {
-                throw IconOffsetLengthException(
-                    "Icon offset coefficient by center " +
-                            " should be in 0.1f..0.9f range."
-                )
-            }
+            iconOffsetCoefficientFromCenter = tmpIconOffset.coerceIn(0.4f..0.85f)
         }
 
         clickListener = { x, y ->
@@ -168,14 +161,13 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
                 )
             }?.draw(canvas)
 
-            with(calculateSectorBoundsTopPoints(sector)) {
-                canvas.drawLines(
-                    floatArrayOf(
-                        centerOfX, centerOfY, this[0].x, this[0].y,
-                        centerOfX, centerOfY, this[1].x, this[1].y
-                    ), sectorBoundsPaint
-                )
-            }
+            val (leftLineStopPoint, rightLineStopPoint) = calculateSectorBoundsTopPoints(sector)
+            canvas.drawLines(
+                floatArrayOf(
+                    centerOfX, centerOfY, leftLineStopPoint.x, leftLineStopPoint.y,
+                    centerOfX, centerOfY, rightLineStopPoint.x, rightLineStopPoint.y
+                ), sectorBoundsPaint
+            )
         }
     }
 
@@ -188,6 +180,7 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
                     eventY = event.y
                     true
                 }
+
                 MotionEvent.ACTION_UP -> {
                     if (isClickEvent(event)) clickListener?.invoke(eventX, eventY)
                     true
@@ -205,8 +198,8 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         return SectorModel(
             sectorNumber * sectorArc,
             sectorInfo,
-            createSectorColorChangingAnimator(sectorInfo.closeColor, sectorInfo.openColor),
-            createSectorAnimator()
+            createSectorAnimator(),
+            createSectorColorChangingAnimator(sectorInfo.closeColor, sectorInfo.openColor)
         ).apply {
             icon = initIcon(this.sectorInfo.drawableId, this)
         }
@@ -337,25 +330,23 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         return Point(x, y)
     }
 
-    private fun calculateSectorBoundsTopPoints(sector: SectorModel): List<Point> =
-        mutableListOf<Point>().apply {
-            val currentRadius = radius + sector.sectorSizeAnimator.animatedValue as Float
-            add(calculateLineByAngleStopPoint(sector.startAngle.toRadian(), currentRadius))
-            add(
-                calculateLineByAngleStopPoint(
-                    (sector.startAngle + sectorArc).toRadian(),
-                    currentRadius
-                )
-            )
-        }
+    private fun calculateSectorBoundsTopPoints(sector: SectorModel): Pair<Point, Point> {
+        val currentRadius = radius + sector.sectorSizeAnimator.animatedValue as Float
+        val leftLineStopPoint =
+            calculateLineByAngleStopPoint(sector.startAngle.toRadian(), currentRadius)
+        val rightLineStopPoint = calculateLineByAngleStopPoint(
+            (sector.startAngle + sectorArc).toRadian(),
+            currentRadius
+        )
+        return leftLineStopPoint to rightLineStopPoint
+    }
+
 
     private fun calculateLineByAngleStopPoint(angle: Float, currentRadius: Float): Point {
         val x = centerOfX + currentRadius * cos(angle)
         val y: Float = centerOfY + currentRadius * sin(angle)
         return Point(x, y)
     }
-
-    class IconOffsetLengthException(message: String) : Throwable(message)
 
     private inner class SectorModel(
         val startAngle: Float,
@@ -375,5 +366,4 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         private const val MAX_ANGLE_IN_DEGREE = 360f
         private const val DEFAULT_SECTOR_BOUNDS_STROKE_WIDTH = 7f
     }
-
 }
