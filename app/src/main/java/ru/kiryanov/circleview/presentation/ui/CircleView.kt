@@ -35,6 +35,7 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
     private var sectorArc: Float = 0f
     private var eventX: Float = 0f
     private var eventY: Float = 0f
+    private var onSectorClickListener: ((isActive : Boolean, sectorInfo : SectorInfo) -> Unit)? = null
 
     init {
         context.theme.obtainStyledAttributes(
@@ -70,12 +71,16 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
                 R.styleable.circleview_icon_offset_by_center_in_radius,
                 DEFAULT_ICON_OFFSET_COEFFICIENT
             )
+
             iconOffsetCoefficientFromCenter = tmpIconOffset.coerceIn(0.4f..0.85f)
         }
 
         clickListener = { x, y ->
             resolveSectorClick(x, y)?.let { sectorNumber ->
-                startNecessaryAnimation(sectors[sectorNumber])
+                with(sectors[sectorNumber]){
+                    startNecessaryAnimation(this)
+                    onSectorClickListener?.invoke(isActive, sectorInfo)
+                }
             }
         }
 
@@ -310,6 +315,10 @@ class CircleView(context: Context, @Nullable atrSet: AttributeSet) : View(contex
         }
         this@CircleView.sectors = sectors
         invalidate()
+    }
+
+    fun setOnCircleClickListener(listener: (isActive : Boolean, sectorInfo : SectorInfo) -> Unit) {
+        onSectorClickListener = listener
     }
 
     private fun calculateIconCenterPoint(sector: SectorModel): Point {

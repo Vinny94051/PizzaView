@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.fragment.app.Fragment
 import kotlinx.android.synthetic.main.activity_custom_view.*
 import ru.kiryanov.circleview.R
@@ -26,6 +27,13 @@ class CustomViewFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         setInfoBtn.setOnClickListener {
             circle.setSectorsInfo(initCircleView())
+            circle.setOnCircleClickListener { isActive, info ->
+                Toast.makeText(
+                    context, info.toString().plus("\n$isActive"),
+                    Toast.LENGTH_SHORT
+                )
+                    .show()
+            }
         }
     }
 
